@@ -1,10 +1,8 @@
-
-
-# from .serializers import RegistrationSerializer, AccountSerializer
+from django.shortcuts import render
+from .models import Account
+from rest_framework.generics import CreateAPIView, UpdateAPIView, RetrieveUpdateAPIView
+from .serializers import RegistrationSerializer, AccountSerializer
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-
-from dj_rest_auth.registration.views import RegisterView
-from .serializers import UserProfileSerializer
 
 # Create your views here.
 class IsOwnerOrReadOnly(BasePermission):
@@ -13,8 +11,11 @@ class IsOwnerOrReadOnly(BasePermission):
             return True
         return obj.id == request.user
 
+class RegistrationView(CreateAPIView):
+    queryset = Account.objects.all()
+    serializer_class = RegistrationSerializer
 
-
-class UserRegisterView(RegisterView):
-    serializer_class = UserProfileSerializer
-    
+class AccountDetailsView(RetrieveUpdateAPIView):
+    permission_classes = [IsOwnerOrReadOnly]
+    queryset = Account.objects.all()
+    serializer_class = AccountSerializer

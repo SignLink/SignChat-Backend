@@ -1,49 +1,60 @@
 from rest_framework import serializers
-from dj_rest_auth.registration.serializers import RegisterSerializer
-from conference_app.models import UserProfile
+from django.contrib.auth.hashers import make_password
+from rest_framework.validators import UniqueValidator
+from django.contrib.auth.password_validation import validate_password
+from .models import Account
 
 
+class AccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = '__all__'
 
-class UserProfileSerializer(RegisterSerializer):
-    username = None
-    first_name = serializers.CharField(max_length =50)
-    last_name = serializers.CharField(max_length =50)
-    sex = serializers.CharField(max_length =20)
-    country = serializers.CharField(max_length =20)
-    state = serializers.CharField(max_length =20)
+    def validate_password(self, value):
+        return make_password(value)
+    
+    def validate_email(self, value):
+        if Account.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email address already exists.")
+        return value
+    
+    def validate(self, attrs):
+        return attrs
 
-    def get_cleaned_data(self):
-        data = super().get_cleaned_data()
-
-        extra_data = {
-
-            'first_name': self.validated_data.get('first_name', ''),
-            'last_name': self.validated_data.get('last_name', ''),
-            'sex': self.validated_data.get('sex', ''),
-            'country': self.validated_data.get('country', ''),
-            'state': self.validated_data.get('state', ''),
-            
-        }
-        data.update(extra_data)
-
-        return data
+        
+class RegistrationSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        required=True,
+        validators=[UniqueValidator(queryset=Account.objects.all())]
+    )
     
 
-    def save(self, request):
-        user = super().save(request)
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True, required=True)
 
-        user.username = user.email
+    class Meta:
+        model = Account
+        fields = '__all__'
+        extra_kwargs = {'password': {'write_only': True}}
 
-        user.save()
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({'password':'Password fields didnt match'})
 
-        userprofile = UserProfile(user=user, first_name=self.cleaned_data.get(
-            'first_name'), last_name=self.cleaned_data.get('last_name'),
-            sex=self.cleaned_data.get('sex'),
-            country=self.cleaned_data.get('country'),
-            state=self.cleaned_data.get('state'),
-            
-            )
+        return attrs
 
-        userprofile.save()
-
-        return user
+    def create(self, validated_data):
+        account = Account(
+            email=validated_data['email'],
+            username = validated_data['username'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],  
+            sex=validated_data['sex'],  
+            country=validated_data['country'],  
+            state=validated_data['state'],  
+        )
+        account.set_password(validated_data['password'])
+        account.save()
+        
+        return account
